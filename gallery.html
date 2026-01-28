@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Галерея — World Travel</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* Specific Gallery Styles */
+        .gallery-header {
+            background: linear-gradient(rgba(15, 76, 117, 0.8), rgba(27, 38, 44, 0.9)),
+                url('https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80');
+            background-size: cover;
+            background-position: center;
+            height: 50vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+
+        .gallery-grid {
+            column-count: 3;
+            column-gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto 50px;
+            padding: 0 20px;
+        }
+
+        .gallery-item {
+            break-inside: avoid;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .gallery-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            display: block;
+        }
+
+        .item-caption {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+            color: white;
+            padding: 20px 10px 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .gallery-item:hover .item-caption {
+            opacity: 1;
+        }
+
+        .video-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            color: white;
+            opacity: 0.8;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Lightbox */
+        .lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .lightbox.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .lightbox-content {
+            max-width: 90%;
+            max-height: 90vh;
+            border-radius: 5px;
+        }
+
+        .close-lightbox {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .gallery-grid {
+                column-count: 2;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .gallery-grid {
+                column-count: 1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav style="position: absolute; top: 0; padding: 20px; width: 100%; z-index: 20;">
+        <a href="index.html" class="btn btn-outline" style="color: white; border-color: white; margin-top: 0;">&larr; На
+            главную</a>
+    </nav>
+
+    <header class="gallery-header">
+        <div class="content">
+            <h1>Архив Счастья</h1>
+            <p>Моменты, которые остаются в сердце навсегда</p>
+        </div>
+    </header>
+
+    <div class="gallery-grid" id="gallery-container">
+        <!-- Content from Firebase -->
+        <p style="text-align:center; width:100%;">Загрузка альбомов...</p>
+    </div>
+
+    <div class="lightbox" id="lightbox">
+        <span class="close-lightbox" onclick="closeLightbox()">&times;</span>
+        <img id="lightbox-img" class="lightbox-content" src="" alt="">
+        <video id="lightbox-video" class="lightbox-content" controls style="display:none;"></video>
+    </div>
+
+    <!-- Contact & Footer -->
+    <div style="text-align: center; margin-bottom: 50px;">
+        <h2>Хотите такие же фото?</h2>
+        <a href="index.html#contact" class="btn">Подобрать тур</a>
+    </div>
+
+    <script src="firebase-config.js"></script>
+    <script>
+        // Init Firebase
+        let db;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+        } catch (e) { console.error(e); }
+
+        // Load data from Firestore
+        function loadGallery() {
+            const container = document.getElementById('gallery-container');
+
+            db.collection("gallery_items").orderBy("timestamp", "desc").get()
+                .then((querySnapshot) => {
+                    if (querySnapshot.empty) {
+                        container.innerHTML = '<p style="text-align:center;">Пока нет фото. Загрузите их через админку!</p>';
+                        return;
+                    }
+
+                    container.innerHTML = '';
+                    querySnapshot.forEach((doc) => {
+                        const item = doc.data();
+
+                        // For video, we might want a thumbnail. For now, we reuse the video URL or a placeholder if we were advanced.
+                        // But standard <video> without poster isn't great in masonry. 
+                        // To keep it simple for this prototype: if it's a video, we show a video tag or a generic icon.
+                        // A better approach would be to upload a thumbnail. Let's assume the user accepted "Masonry" logic.
+
+                        let visual = '';
+                        if (item.type === 'video') {
+                            // Using video tag as thumbnail (heavy but works for prototype)
+                            visual = `<video src="${item.url}#t=1.0" preload="metadata" style="pointer-events:none;"></video>
+                                  <div class="video-indicator"><i class="fas fa-play-circle"></i></div>`;
+                        } else {
+                            visual = `<img src="${item.url}" alt="${item.caption}">`;
+                        }
+
+                        container.innerHTML += `
+                        <div class="gallery-item" onclick="openLightbox('${item.url}', '${item.type}')">
+                            ${visual}
+                            <div class="item-caption">${item.caption}</div>
+                        </div>
+                    `;
+                    });
+                })
+                .catch((error) => {
+                    console.error("Error loading gallery:", error);
+                    container.innerHTML = '<p>Ошибка загрузки галереи. Проверьте консоль.</p>';
+                });
+        }
+
+        // Lightbox Logic
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = document.getElementById('lightbox-img');
+        const lightboxVideo = document.getElementById('lightbox-video');
+
+        function openLightbox(url, type) {
+            lightbox.classList.add('active');
+
+            if (type === 'video') {
+                lightboxImg.style.display = 'none';
+                lightboxVideo.style.display = 'block';
+                lightboxVideo.src = url;
+                lightboxVideo.play();
+            } else {
+                lightboxVideo.style.display = 'none';
+                lightboxVideo.pause();
+                lightboxImg.style.display = 'block';
+                lightboxImg.src = url;
+            }
+        }
+
+        function closeLightbox() {
+            lightbox.classList.remove('active');
+            lightboxVideo.pause();
+            lightboxVideo.src = "";
+        }
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) closeLightbox();
+        });
+
+        // Init
+        loadGallery();
+    </script>
+</body>
+
+</html>

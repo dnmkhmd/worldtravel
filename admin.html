@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ-панель — World Travel</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        body {
+            background: #f0f2f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .admin-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-screen {
+            text-align: center;
+            max-width: 400px;
+            margin: 50px auto;
+        }
+
+        .dashboard-screen {
+            display: none;
+        }
+    </style>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
+</head>
+
+<body>
+
+    <div class="admin-container">
+        <!-- Login Screen -->
+        <div id="login-screen" class="login-screen">
+            <h2>Вход в админ-панель</h2>
+            <form id="login-form">
+                <div class="form-group">
+                    <input type="password" id="password" class="input-field" placeholder="Введите пароль (admin)"
+                        required>
+                </div>
+                <button type="submit" class="btn">Войти</button>
+            </form>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard-screen" class="dashboard-screen">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h2>Управление медиа</h2>
+                <a href="gallery.html" target="_blank" class="btn btn-outline"
+                    style="margin: 0; padding: 10px 20px;">Открыть галерею</a>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="glass-card" style="padding: 30px; margin-bottom: 30px; max-width: 100%;">
+                <h3>Загрузить новые файлы</h3>
+                <p style="margin-bottom: 20px; color: #666;">Перетащите фото или видео сюда</p>
+
+                <div class="upload-zone" id="drop-zone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h3>Перетащите файлы сюда</h3>
+                    <p>или кликните для выбора</p>
+                    <input type="file" id="file-input" style="display: none;" accept="image/*,video/*">
+                </div>
+
+                <div class="form-group">
+                    <input type="text" id="caption-input" class="input-field"
+                        placeholder="Добавить подпись (опционально)">
+                </div>
+
+                <div class="progress-container" id="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <p id="upload-status" style="font-size: 0.9rem; margin-top: 5px;">Загрузка...</p>
+                </div>
+            </div>
+
+            <h3 style="margin-bottom: 15px;">Текущая галерея</h3>
+            <div class="admin-gallery-grid" id="admin-gallery">
+                <!-- Items will be injected here -->
+            </div>
+
+            <button onclick="logout()" class="btn btn-outline" style="margin-top: 40px; width: 100%;">Выйти</button>
+        </div>
+    </div>
+
+    <!-- User Config -->
+    <script src="firebase-config.js"></script>
+
+    <script>
+        // Initialize Firebase
+        let db, storage;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            storage = firebase.storage();
+            console.log("Firebase initialized successfully");
+        } catch (error) {
+            console.error("Firebase Auth Error:", error);
+            alert("Ошибка Firebase! Проверьте firebase-config.js");
+        }
+
+        // --- AUTH LOGIC ---
+        const loginScreen = document.getElementById('login-screen');
+        const dashboardScreen = document.getElementById('dashboard-screen');
+
+        if (localStorage.getItem('wt_admin_logged_in') === 'true') {
+            showDashboard();
+        }
+
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const pass = document.getElementById('password').value;
+            if (pass === 'admin') {
+                localStorage.setItem('wt_admin_logged_in', 'true');
+                showDashboard();
+            } else {
+                alert('Неверный пароль!');
+            }
+        });
+
+        function showDashboard() {
+            loginScreen.style.display = 'none';
+            dashboardScreen.style.display = 'block';
+            loadAdminGallery();
+        }
+
+        function logout() {
+            localStorage.removeItem('wt_admin_logged_in');
+            location.reload();
+        }
+
+        // --- UPLOAD LOGIC ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const progressContainer = document.getElementById('progress-container');
+        const progressFill = document.getElementById('progress-fill');
+        const uploadStatus = document.getElementById('upload-status');
+
+        // Drag handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            const file = files[0]; // Handle one file at a time for simplicity
+            uploadFile(file);
+        }
+
+        function uploadFile(file) {
+            const caption = document.getElementById('caption-input').value || 'Без подписи';
+            const type = file.type.startsWith('image/') ? 'image' : 'video';
+            const fileName = `${Date.now()}_${file.name}`;
+
+            // Storage Ref
+            const storageRef = storage.ref(`gallery/${fileName}`);
+            const uploadTask = storageRef.put(file);
+
+            progressContainer.style.display = 'block';
+
+            uploadTask.on('state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    progressFill.style.width = progress + '%';
+                    uploadStatus.innerText = `Загрузка: ${Math.round(progress)}%`;
+                },
+                (error) => {
+                    console.error("Upload error:", error);
+                    alert("Ошибка загрузки: " + error.message);
+                },
+                () => {
+                    // Success
+                    uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
+                        saveToFirestore(downloadURL, type, caption, fileName);
+                    });
+                }
+            );
+        }
+
+        function saveToFirestore(url, type, caption, storagePath) {
+            db.collection("gallery_items").add({
+                url: url,
+                type: type,
+                caption: caption,
+                storagePath: `gallery/${storagePath}`,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            })
+                .then(() => {
+                    uploadStatus.innerText = "Успешно!";
+                    document.getElementById('caption-input').value = '';
+                    progressContainer.style.display = 'none';
+                    loadAdminGallery(); // Refresh grid
+                })
+                .catch((error) => {
+                    console.error("DB Error:", error);
+                    alert("Ошибка сохранения в базу: " + error.message);
+                });
+        }
+
+        // --- READ & DELETE LOGIC ---
+        function loadAdminGallery() {
+            const grid = document.getElementById('admin-gallery');
+            grid.innerHTML = '<p>Загрузка...</p>';
+
+            db.collection("gallery_items").orderBy("timestamp", "desc").get().then((querySnapshot) => {
+                grid.innerHTML = '';
+                querySnapshot.forEach((doc) => {
+                    const item = doc.data();
+                    const el = document.createElement('div');
+                    el.className = 'admin-item';
+
+                    let content = '';
+                    if (item.type === 'video') {
+                        content = `<video src="${item.url}" muted></video>`;
+                    } else {
+                        content = `<img src="${item.url}" alt="${item.caption}">`;
+                    }
+
+                    el.innerHTML = `
+                        ${content}
+                        <button class="delete-btn-overlay" onclick="deleteItem('${doc.id}', '${item.storagePath}')">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    `;
+                    grid.appendChild(el);
+                });
+            });
+        }
+
+        window.deleteItem = function (docId, storagePath) {
+            if (!confirm("Удалить этот файл навсегда?")) return;
+
+            // 1. Delete from Storage
+            // 2. Delete from Firestore
+
+            // Note: If old local items exist without storagePath, handle gracefully? 
+            // We assume new system.
+
+            const deletePromises = [];
+
+            if (storagePath) {
+                deletePromises.push(storage.ref(storagePath).delete());
+            }
+
+            Promise.all(deletePromises)
+                .then(() => {
+                    return db.collection("gallery_items").doc(docId).delete();
+                })
+                .then(() => {
+                    console.log("Deleted successfully");
+                    loadAdminGallery();
+                })
+                .catch((error) => {
+                    console.error("Delete error:", error);
+                    // Force delete from DB even if storage fail (cleanup)
+                    db.collection("gallery_items").doc(docId).delete().then(loadAdminGallery);
+                });
+        };
+
+    </script>
+</body>
+
+</html>

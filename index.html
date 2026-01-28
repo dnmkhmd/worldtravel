@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Travel — Путешествуйте с комфортом</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+
+    <header>
+        <div class="logo-container">
+            <!-- Using the PNG logo if available, otherwise just text fallback in design -->
+            <img src="World Travel LOGO7.png" alt="World Travel Logo">
+        </div>
+        <div class="hero-content">
+            <h1>Откройте мир вместе с <br><span class="highlight">World Travel</span></h1>
+            <p>Индивидуальные туры • Визовая поддержка • Незабываемые эмоции</p>
+            <a href="#contact" class="btn btn-gold">Получить консультацию</a>
+        </div>
+    </header>
+
+    <section class="features">
+        <div class="container">
+            <h2>Почему выбирают нас?</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">✈️</div>
+                    <h3>Лучшие направления</h3>
+                    <p>Мы подбираем туры в самые красивые уголки планеты по вашим пожеланиям.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🛡️</div>
+                    <h3>Полная надежность</h3>
+                    <p>Поддержка 24/7 во время вашего путешествия. Вы никогда не останетесь одни.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">💎</div>
+                    <h3>Выгодные цены</h3>
+                    <p>Прямые контракты с отелями и авиакомпаниями позволяют нам давать лучшие цены.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Media Showcase Section -->
+    <section class="media-showcase">
+        <h2>Погрузитесь в атмосферу</h2>
+        <div class="media-grid">
+            <div class="media-item tall">
+                <img src="https://images.unsplash.com/photo-1506929562872-bb421503ef21?ixlib=rb-1.2.1&auto=format&fit=crop&w=668&q=80"
+                    alt="Beach">
+            </div>
+            <div class="media-item wide">
+                <img src="https://images.unsplash.com/photo-1454391304352-2bf4678b1a7a?ixlib=rb-1.2.1&auto=format&fit=crop&w=1050&q=80"
+                    alt="Mountain">
+            </div>
+            <div class="media-item">
+                <img src="https://images.unsplash.com/photo-1515238152791-8216bfdf89a7?ixlib=rb-1.2.1&auto=format&fit=crop&w=1502&q=80"
+                    alt="Ocean">
+            </div>
+            <div class="media-item">
+                <img src="https://images.unsplash.com/photo-1504964148508-79c67e80261f?ixlib=rb-1.2.1&auto=format&fit=crop&w=1050&q=80"
+                    alt="City">
+            </div>
+        </div>
+    </section>
+
+    <!-- Happy Travelers Preview -->
+    <section class="happy-travelers">
+        <div class="container">
+            <h2>Наши счастливые туристы</h2>
+            <p class="subtitle">Присоединяйтесь к сотням довольных клиентов</p>
+            <div class="travelers-preview-grid" id="travelers-preview">
+                <!-- Content will be loaded dynamically or placeholder -->
+                <div class="traveler-card placeholder">
+                    <img src="https://images.unsplash.com/photo-1516483638261-f4dbaf036963?ixlib=rb-1.2.1&auto=format&fit=crop&w=633&q=80"
+                        alt="Client 1">
+                    <div class="caption">"Незабываемый отдых на Бали!"</div>
+                </div>
+                <div class="traveler-card placeholder">
+                    <img src="https://images.unsplash.com/photo-1527631746610-bca00a040d60?ixlib=rb-1.2.1&auto=format&fit=crop&w=634&q=80"
+                        alt="Client 2">
+                    <div class="caption">"Спасибо за организацию тура в Дубай"</div>
+                </div>
+                <div class="traveler-card placeholder">
+                    <img src="https://images.unsplash.com/photo-1523906834658-6e24ef2386f9?ixlib=rb-1.2.1&auto=format&fit=crop&w=633&q=80"
+                        alt="Client 3">
+                    <div class="caption">"Италия была прекрасна"</div>
+                </div>
+            </div>
+            <a href="gallery.html" class="btn btn-outline">Смотреть все фото и видео</a>
+        </div>
+    </section>
+
+    <section id="contact" class="contact-section">
+        <div class="glass-card">
+            <h2>Начните путешествие прямо сейчас</h2>
+            <p class="form-subtitle">Оставьте заявку, и мы подберем идеальный тур для вас</p>
+
+            <form id="consultation-form">
+                <div class="form-group">
+                    <input type="text" id="name" class="input-field" placeholder="Ваше имя" required>
+                </div>
+
+                <div class="contact-preference-section">
+                    <p class="pref-label">Как с вами связаться?</p>
+                    <div class="preference-toggle">
+                        <label class="pref-option">
+                            <input type="radio" name="contact-method" value="call" checked
+                                onchange="toggleContactInput()">
+                            <span class="pref-box">
+                                <i class="fas fa-phone-alt"></i>
+                                <span>Позвонить</span>
+                            </span>
+                        </label>
+                        <label class="pref-option">
+                            <input type="radio" name="contact-method" value="message" onchange="toggleContactInput()">
+                            <span class="pref-box">
+                                <i class="far fa-comment-dots"></i>
+                                <span>Написать</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group dynamic-input" id="contact-input-group">
+                    <!-- Dynamic input injected by JS -->
+                    <input type="tel" class="input-field" placeholder="Номер телефона" required>
+                </div>
+
+                <div id="messenger-choice" class="messenger-choice hidden">
+                    <label><input type="radio" name="messenger" value="whatsapp" checked> WhatsApp</label>
+                    <label><input type="radio" name="messenger" value="telegram"> Telegram</label>
+                </div>
+
+                <button type="submit" class="btn btn-block">Отправить заявку</button>
+            </form>
+
+            <div class="social-section">
+                <p>Или свяжитесь с нами сами:</p>
+                <div class="social-links">
+                    <a href="https://wa.me/ТВОЙ_НОМЕР" target="_blank" class="social-btn whatsapp">
+                        <i class="fab fa-whatsapp"></i> WhatsApp
+                    </a>
+                    <a href="https://www.instagram.com/worldtravelastana?igsh=MTM0YnAxaTc1bGd6bA==" target="_blank"
+                        class="social-btn instagram">
+                        <i class="fab fa-instagram"></i> Instagram
+                    </a>
+                    <a href="https://go.2gis.com/gk9q5" target="_blank" class="social-btn gis">
+                        <i class="fas fa-map-marker-alt"></i> Мы в 2ГИС
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="main.js"></script>
+</body>
+
+</html>
