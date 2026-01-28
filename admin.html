@@ -34,11 +34,6 @@
             display: none;
         }
     </style>
-
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
 </head>
 
 <body>
@@ -67,7 +62,7 @@
             <!-- Upload Section -->
             <div class="glass-card" style="padding: 30px; margin-bottom: 30px; max-width: 100%;">
                 <h3>Загрузить новые файлы</h3>
-                <p style="margin-bottom: 20px; color: #666;">Перетащите фото или видео сюда</p>
+                <p style="margin-bottom: 20px; color: #666;">Перетащите фото или видео сюда (сохраняются локально)</p>
 
                 <div class="upload-zone" id="drop-zone">
                     <i class="fas fa-cloud-upload-alt"></i>
@@ -85,7 +80,7 @@
                     <div class="progress-bar">
                         <div class="progress-fill" id="progress-fill"></div>
                     </div>
-                    <p id="upload-status" style="font-size: 0.9rem; margin-top: 5px;">Загрузка...</p>
+                    <p id="upload-status" style="font-size: 0.9rem; margin-top: 5px;">Обработка...</p>
                 </div>
             </div>
 
@@ -98,26 +93,15 @@
         </div>
     </div>
 
-    <!-- User Config -->
-    <script src="firebase-config.js"></script>
+    <!-- IndexedDB Logic -->
+    <script src="db.js"></script>
 
     <script>
-        // Initialize Firebase
-        let db, storage;
-        try {
-            firebase.initializeApp(firebaseConfig);
-            db = firebase.firestore();
-            storage = firebase.storage();
-            console.log("Firebase initialized successfully");
-        } catch (error) {
-            console.error("Firebase Auth Error:", error);
-            alert("Ошибка Firebase! Проверьте firebase-config.js");
-        }
-
         // --- AUTH LOGIC ---
         const loginScreen = document.getElementById('login-screen');
         const dashboardScreen = document.getElementById('dashboard-screen');
 
+        // Simple password check
         if (localStorage.getItem('wt_admin_logged_in') === 'true') {
             showDashboard();
         }
@@ -148,10 +132,8 @@
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
         const progressContainer = document.getElementById('progress-container');
-        const progressFill = document.getElementById('progress-fill');
         const uploadStatus = document.getElementById('upload-status');
 
-        // Drag handlers
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('drag-over');
@@ -165,120 +147,83 @@
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', () => handleFiles(fileInput.files));
 
-        function handleFiles(files) {
+        async function handleFiles(files) {
             if (files.length === 0) return;
-            const file = files[0]; // Handle one file at a time for simplicity
-            uploadFile(file);
-        }
-
-        function uploadFile(file) {
-            const caption = document.getElementById('caption-input').value || 'Без подписи';
-            const type = file.type.startsWith('image/') ? 'image' : 'video';
-            const fileName = `${Date.now()}_${file.name}`;
-
-            // Storage Ref
-            const storageRef = storage.ref(`gallery/${fileName}`);
-            const uploadTask = storageRef.put(file);
-
             progressContainer.style.display = 'block';
+            uploadStatus.innerText = "Сохранение...";
 
-            uploadTask.on('state_changed',
-                (snapshot) => {
-                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                    progressFill.style.width = progress + '%';
-                    uploadStatus.innerText = `Загрузка: ${Math.round(progress)}%`;
-                },
-                (error) => {
-                    console.error("Upload error:", error);
-                    alert("Ошибка загрузки: " + error.message);
-                },
-                () => {
-                    // Success
-                    uploadTask.snapshot.ref.getDownloadURL().then((downloadURL) => {
-                        saveToFirestore(downloadURL, type, caption, fileName);
-                    });
-                }
-            );
+            const file = files[0];
+            const caption = document.getElementById('caption-input').value || 'Без подписи';
+
+            try {
+                // Save to IndexedDB via db.js
+                await addItem(file, caption);
+
+                uploadStatus.innerText = "Успешно!";
+                document.getElementById('caption-input').value = '';
+                setTimeout(() => { progressContainer.style.display = 'none'; }, 1000);
+
+                // Refresh Grid
+                loadAdminGallery();
+
+            } catch (err) {
+                console.error(err);
+                alert("Ошибка сохранения: " + err);
+                progressContainer.style.display = 'none';
+            }
         }
 
-        function saveToFirestore(url, type, caption, storagePath) {
-            db.collection("gallery_items").add({
-                url: url,
-                type: type,
-                caption: caption,
-                storagePath: `gallery/${storagePath}`,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            })
-                .then(() => {
-                    uploadStatus.innerText = "Успешно!";
-                    document.getElementById('caption-input').value = '';
-                    progressContainer.style.display = 'none';
-                    loadAdminGallery(); // Refresh grid
-                })
-                .catch((error) => {
-                    console.error("DB Error:", error);
-                    alert("Ошибка сохранения в базу: " + error.message);
-                });
-        }
-
-        // --- READ & DELETE LOGIC ---
-        function loadAdminGallery() {
+        // --- LOAD & DELETE LOGIC ---
+        async function loadAdminGallery() {
             const grid = document.getElementById('admin-gallery');
             grid.innerHTML = '<p>Загрузка...</p>';
 
-            db.collection("gallery_items").orderBy("timestamp", "desc").get().then((querySnapshot) => {
+            try {
+                const items = await getAllItems();
+
+                if (items.length === 0) {
+                    grid.innerHTML = '<p>Нет загруженных файлов</p>';
+                    return;
+                }
+
                 grid.innerHTML = '';
-                querySnapshot.forEach((doc) => {
-                    const item = doc.data();
+                items.forEach((item) => {
                     const el = document.createElement('div');
                     el.className = 'admin-item';
 
+                    // Creates a temporary Blob URL for preview
+                    const url = URL.createObjectURL(item.blob);
+
                     let content = '';
                     if (item.type === 'video') {
-                        content = `<video src="${item.url}" muted></video>`;
+                        content = `<video src="${url}" muted></video>`;
                     } else {
-                        content = `<img src="${item.url}" alt="${item.caption}">`;
+                        content = `<img src="${url}" alt="${item.caption}">`;
                     }
 
                     el.innerHTML = `
                         ${content}
-                        <button class="delete-btn-overlay" onclick="deleteItem('${doc.id}', '${item.storagePath}')">
+                        <button class="delete-btn-overlay" onclick="removeMedia('${item.id}')">
                             <i class="fas fa-trash"></i>
                         </button>
                     `;
                     grid.appendChild(el);
                 });
-            });
+
+            } catch (err) {
+                console.error(err);
+                grid.innerHTML = '<p>Ошибка базы данных</p>';
+            }
         }
 
-        window.deleteItem = function (docId, storagePath) {
-            if (!confirm("Удалить этот файл навсегда?")) return;
-
-            // 1. Delete from Storage
-            // 2. Delete from Firestore
-
-            // Note: If old local items exist without storagePath, handle gracefully? 
-            // We assume new system.
-
-            const deletePromises = [];
-
-            if (storagePath) {
-                deletePromises.push(storage.ref(storagePath).delete());
+        window.removeMedia = async function (id) {
+            if (!confirm("Удалить файл?")) return;
+            try {
+                await deleteItem(id);
+                loadAdminGallery();
+            } catch (e) {
+                alert("Ошибка удаления: " + e);
             }
-
-            Promise.all(deletePromises)
-                .then(() => {
-                    return db.collection("gallery_items").doc(docId).delete();
-                })
-                .then(() => {
-                    console.log("Deleted successfully");
-                    loadAdminGallery();
-                })
-                .catch((error) => {
-                    console.error("Delete error:", error);
-                    // Force delete from DB even if storage fail (cleanup)
-                    db.collection("gallery_items").doc(docId).delete().then(loadAdminGallery);
-                });
         };
 
     </script>

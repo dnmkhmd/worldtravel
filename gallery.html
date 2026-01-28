@@ -8,10 +8,6 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-
     <style>
         /* Specific Gallery Styles */
         .gallery-header {
@@ -150,8 +146,8 @@
     </header>
 
     <div class="gallery-grid" id="gallery-container">
-        <!-- Content from Firebase -->
-        <p style="text-align:center; width:100%;">Загрузка альбомов...</p>
+        <!-- Content from DB -->
+        <p style="text-align:center; width:100%;">Загрузка...</p>
     </div>
 
     <div class="lightbox" id="lightbox">
@@ -166,56 +162,48 @@
         <a href="index.html#contact" class="btn">Подобрать тур</a>
     </div>
 
-    <script src="firebase-config.js"></script>
+    <script src="db.js"></script>
     <script>
-        // Init Firebase
-        let db;
-        try {
-            firebase.initializeApp(firebaseConfig);
-            db = firebase.firestore();
-        } catch (e) { console.error(e); }
-
-        // Load data from Firestore
-        function loadGallery() {
+        async function loadGallery() {
             const container = document.getElementById('gallery-container');
 
-            db.collection("gallery_items").orderBy("timestamp", "desc").get()
-                .then((querySnapshot) => {
-                    if (querySnapshot.empty) {
-                        container.innerHTML = '<p style="text-align:center;">Пока нет фото. Загрузите их через админку!</p>';
-                        return;
+            try {
+                const items = await getAllItems();
+
+                if (items.length === 0) {
+                    container.innerHTML = '<p style="text-align:center; width:100%;">Галерея пуста. Добавьте фото в админ-панели!</p>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                items.forEach((item) => {
+                    // Create Blob URL
+                    const url = URL.createObjectURL(item.blob);
+
+                    let visual = '';
+                    if (item.type === 'video') {
+                        // Video Thumbnail Logic (Simple)
+                        visual = `<video src="${url}#t=1.0" preload="metadata" style="pointer-events:none;"></video>
+                                  <div class="video-indicator"><i class="fas fa-play-circle"></i></div>`;
+                    } else {
+                        visual = `<img src="${url}" alt="${item.caption}">`;
                     }
 
-                    container.innerHTML = '';
-                    querySnapshot.forEach((doc) => {
-                        const item = doc.data();
+                    // We wrap the `onclick` in a closure or pass data-attributes to handle dynamic URLs correctly
+                    // But simplest is creating the element via JS to attach the event listener directly (safest for Blob URLs)
+                    const div = document.createElement('div');
+                    div.className = 'gallery-item';
+                    div.innerHTML = `${visual}<div class="item-caption">${item.caption}</div>`;
 
-                        // For video, we might want a thumbnail. For now, we reuse the video URL or a placeholder if we were advanced.
-                        // But standard <video> without poster isn't great in masonry. 
-                        // To keep it simple for this prototype: if it's a video, we show a video tag or a generic icon.
-                        // A better approach would be to upload a thumbnail. Let's assume the user accepted "Masonry" logic.
+                    div.onclick = () => openLightbox(url, item.type);
 
-                        let visual = '';
-                        if (item.type === 'video') {
-                            // Using video tag as thumbnail (heavy but works for prototype)
-                            visual = `<video src="${item.url}#t=1.0" preload="metadata" style="pointer-events:none;"></video>
-                                  <div class="video-indicator"><i class="fas fa-play-circle"></i></div>`;
-                        } else {
-                            visual = `<img src="${item.url}" alt="${item.caption}">`;
-                        }
-
-                        container.innerHTML += `
-                        <div class="gallery-item" onclick="openLightbox('${item.url}', '${item.type}')">
-                            ${visual}
-                            <div class="item-caption">${item.caption}</div>
-                        </div>
-                    `;
-                    });
-                })
-                .catch((error) => {
-                    console.error("Error loading gallery:", error);
-                    container.innerHTML = '<p>Ошибка загрузки галереи. Проверьте консоль.</p>';
+                    container.appendChild(div);
                 });
+
+            } catch (error) {
+                console.error("Error loading gallery:", error);
+                container.innerHTML = '<p>Ошибка загрузки.</p>';
+            }
         }
 
         // Lightbox Logic
@@ -242,7 +230,7 @@
         function closeLightbox() {
             lightbox.classList.remove('active');
             lightboxVideo.pause();
-            lightboxVideo.src = "";
+            lightboxVideo.removeAttribute('src'); // Stop buffering
         }
 
         lightbox.addEventListener('click', (e) => {
